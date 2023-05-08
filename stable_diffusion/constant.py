@@ -1,4 +1,4 @@
 PRETRAINED_MODEL_NAME_OR_PATH = "stabilityai/stable-diffusion-2-1"
 TORCH_DEVICE = "mps"
-HUGGINGFACE_TOKEN = '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'
+HUGGINGFACE_TOKEN = ''
 MAXSTAPEDENOISE = 3
