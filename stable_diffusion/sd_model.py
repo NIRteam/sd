@@ -4,8 +4,6 @@ import numpy as np
 import torch
 from PIL import Image
 from torch import autocast
-from torch.cuda.amp import autocast
-
 from stable_diffusion.constant import TORCH_DEVICE
 from stable_diffusion.download_ns import load_sd
 
