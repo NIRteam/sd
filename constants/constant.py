@@ -2,7 +2,7 @@
 from enum import Enum
 import torch
 
-DEBUG = False
+DEBUG = True
 
 # main файл, пути к данным
 DIR_PATH_INPUT = "data/input"
@@ -19,8 +19,9 @@ SIZE = (512, 512)
 # размер изображения для НС
 SCALED_SIZE_DEFAULT = (1200, 1200)
 
+DENOISE_STEPS = 5
 
 class Models(Enum):
     UNET = 'unet'
-    SD = 'sd'
+    SD = 'sd_inp' # 'sd' or 'sd_inp'
     ENCODER = 'encoder'
