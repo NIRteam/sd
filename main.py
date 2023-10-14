@@ -3,24 +3,27 @@ import time
 
 import numpy as np
 
-from compress import run_coder
+from compress import run_coder, createSd
 from constants.constant import DIR_NAME, DIR_PATH_INPUT, DIR_PATH_OUTPUT, SHOW_VIDEO, is_save, is_quantize, \
-    save_rescaled_out
+    save_rescaled_out, PREDICTION_MODEL_PATH, REAL, REAL_NAME, FAKE_NAME, FAKE, Platform
 from utils import save_img, metrics_img, write_metrics_in_file
 from core import load_and_rescaled, latent_to_img
 from common.logging_sd import configure_logger
+from prediction import Model, DMVFN
 import cv2
 
 logger = configure_logger(__name__)
+createSd(Platform.MAIN)
 
 
 def default_main(save_metrics=True):
+
     start = time.time()  ## точка отсчета времени
     logger.debug(f"compressing files for is_quantize = {str(is_quantize)}")
 
     if not os.path.exists(DIR_PATH_INPUT):
         os.makedirs(DIR_PATH_INPUT)
-    if not os.path.exists(DIR_PATH_OUTPUT):
+    if not os.path.exists(DIR_PATH_OUTPUT) and save_metrics:
         os.makedirs(DIR_PATH_OUTPUT)
 
     logger.debug(f"get files in dir = {DIR_NAME}")
@@ -29,11 +32,35 @@ def default_main(save_metrics=True):
         window_name = 'Video'
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
-    for rescaled_img, image, img_name, save_parent_dir_name, save_dir_name in load_and_rescaled():
-        # функции НС
-        compress_img = run_coder(cv2.cvtColor(rescaled_img, cv2.COLOR_BGR2RGB))
+    model = Model(
+        DMVFN(PREDICTION_MODEL_PATH))
 
-        uncompress_img = latent_to_img(compress_img)
+    pattern = [REAL_NAME] * REAL + [FAKE_NAME] * FAKE
+
+    restored_imgs = []
+
+    for i, (rescaled_img, image, img_name, save_parent_dir_name, save_dir_name) in enumerate(load_and_rescaled(False)):
+
+        # функции НС
+        if pattern[i % len(pattern)] == REAL_NAME:
+
+            coderTimeStart = time.time()
+            compress_img = run_coder(cv2.cvtColor(rescaled_img, cv2.COLOR_BGR2RGB))
+            logger.debug(f"time spent on coder is {time.time() - coderTimeStart}")
+
+            decoderTimeStart = time.time()
+            uncompress_img = latent_to_img(compress_img)
+            logger.debug(f"time spent on decoder is {time.time() - decoderTimeStart}")
+
+        elif pattern[i % len(pattern)] == FAKE_NAME:
+            predictTimeStart = time.time()
+            uncompress_img = model.predict(restored_imgs[-2:])
+            logger.debug(f"time spent on prediction is {time.time() - predictTimeStart}")
+
+        restored_imgs.append(uncompress_img)
+
+        if len(restored_imgs) > 2:
+            del restored_imgs[0]
 
         if is_save:
             save_img(uncompress_img, path=f"{save_parent_dir_name}/{save_dir_name}", name_img=img_name)
@@ -59,4 +86,4 @@ def default_main(save_metrics=True):
 
 
 if __name__ == '__main__':
-    default_main(save_metrics=True)
+    default_main(save_metrics=False)
