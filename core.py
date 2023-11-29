@@ -3,7 +3,7 @@ import time
 
 import numpy as np
 
-from compress import run_decoder
+from compress import run_decoder, warmup_func
 from constants.constant import DIR_NAME, DIR_PATH_INPUT, DIR_PATH_OUTPUT, SIZE, USE_VIDEO, save_rescaled_out
 from utils import load_image, save_img, get_rescaled_cv2, create_dir,load_frame_video
 from common.logging_sd import configure_logger
@@ -12,7 +12,7 @@ import cv2
 logger = configure_logger(__name__)
 
 
-def load_and_rescaled():
+def load_and_rescaled(save=True):
     count = 0
     load_frame = load_image if not USE_VIDEO else load_frame_video
 
@@ -22,8 +22,10 @@ def load_and_rescaled():
 
             if not USE_VIDEO:
                 img_path, img_name = params_frame
+                logger.debug(f"found new frame {img_path}/{img_name}")
             else:
                 frame, img_name, video_name = params_frame
+                logger.debug(f"found new video {DIR_PATH_INPUT}/{dir_name}/{video_name}")
 
             # считывание кадра из input
             if USE_VIDEO:
@@ -37,19 +39,17 @@ def load_and_rescaled():
             # сжатие кадра для отправления на НС
             img = get_rescaled_cv2(image, SIZE)
 
-            if not os.path.exists(f"{DIR_PATH_OUTPUT}/{dir_name}_run"):
+            if not os.path.exists(f"{DIR_PATH_OUTPUT}/{dir_name}_run") and save:
                 create_dir(DIR_PATH_OUTPUT, f"{dir_name}_run")
             save_parent_dir_name = f"{dir_name}_run"
 
             # создание директории для сохранения сжатого изображения и резултатов метрик
-            if not os.path.exists(f"{DIR_PATH_OUTPUT}/{save_parent_dir_name}/{count}_run"):
+            if not os.path.exists(f"{DIR_PATH_OUTPUT}/{save_parent_dir_name}/{count}_run") and save:
                 create_dir(f"{DIR_PATH_OUTPUT}/{save_parent_dir_name}", f"{count}_run")
             save_dir_name = f"{count}_run"
 
             if save_rescaled_out:
                 save_img(img, path=f"{save_parent_dir_name}/{save_dir_name}", name_img=f"resc_{img_name}")
-
-            print(count)
 
             yield img, image, img_name, save_parent_dir_name, save_dir_name
 
@@ -58,4 +58,10 @@ def latent_to_img(compress_img):
     uncompress_img = run_decoder(compress_img)
     uncompress_img = cv2.cvtColor(np.array(uncompress_img), cv2.COLOR_RGB2BGR)
     return uncompress_img
+
+
+def run_warmup(img):
+    logger.debug("warmup in run")
+    res = warmup_func(img)
+    return cv2.cvtColor(np.array(res), cv2.COLOR_RGB2BGR)
 

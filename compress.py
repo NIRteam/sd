@@ -1,18 +1,71 @@
+import gzip
+import lzma
+import zlib
+
+# import pyhuffman
+import zstandard
+
 import model_factory
 from common.logging_sd import configure_logger
-from constants.constant import Models
+from constants.constant import Models, lossless_compression_alg
+from stable_diffusion.compressor import SdCompressor
 
-sd = model_factory.new_model(Models.SD.value)
-unet = model_factory.new_model(Models.UNET.value)
-encoder = model_factory.new_model(Models.ENCODER.value)
-logger = configure_logger(__name__)
+sd: SdCompressor = None
+
+
+def createSd(platform):
+    global sd
+    sd = model_factory.new_model(Models.SD.value, platform)
+    # unet = model_factory.new_model(Models.UNET.value)
+    # encoder = model_factory.new_model(Models.ENCODER.value)
+    logger = configure_logger(__name__)
 
 
 def run_coder(img):
-    return sd.quantize_img(img)
+    global sd
+    bin_quantized = sd.quantize_img(img)
+    return compress_via_lossless_alg(bin_quantized)
+
+
+def warmup_func(bin_quantized):
+    compressed_img = compress_via_lossless_alg(bin_quantized)
+    return run_decoder(compressed_img)
+
+
+def compress_via_lossless_alg(bin_quantized):
+    if lossless_compression_alg == 'lzma':
+        return lzma.compress(bin_quantized)
+    elif lossless_compression_alg == 'gzip':
+        return gzip.compress(bin_quantized)
+    elif lossless_compression_alg == 'zstd':
+        return zstandard.compress(bin_quantized)
+    # elif lossless_compression_alg == 'huffman':
+    #     return pyhuffman.encode(bin_quantized)
+    elif lossless_compression_alg == 'deflate':
+        compress_obj = zlib.compressobj(level=6, method=zlib.DEFLATED)
+        compress_data = compress_obj.compress(bin_quantized)
+        compress_data += compress_obj.flush()
+        return compress_data
+    else:
+        return bin_quantized
 
 
 def run_decoder(img):
-    rest_img = sd.uncompress(img)
+    global sd
+    if lossless_compression_alg == 'lzma':
+        bin_quantized = lzma.decompress(img)
+    elif lossless_compression_alg == 'gzip':
+        bin_quantized = gzip.decompress(img)
+    elif lossless_compression_alg == 'zstd':
+        bin_quantized = zstandard.decompress(img)
+    # elif lossless_compression_alg == 'huffman':
+    #     bin_quantized = pyhuffman.decode(img)
+    elif lossless_compression_alg == 'deflate':
+        decompress = zlib.decompressobj()
+        bin_quantized = decompress.decompress(img)
+        bin_quantized += decompress.flush()
+    else:
+        bin_quantized = img
+    rest_img = sd.uncompress(bin_quantized)
     return rest_img
     # return unet.restoration(rest_img)
